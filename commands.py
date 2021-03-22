@@ -4,14 +4,16 @@ from util.selector import Selector
 
 
 @args
-def say(ctx: Context, *args: str):
+def say(ctx: Context, *, args: str):
     print(f"[{ctx.target.name if ctx.target else '@'}] ", end="")
-    for word in args:
-        if len(word) > 0 and word[0] == "@":
-            if sel := Selector.convert(word):
-                print(", ".join(map(lambda e: e.name, sel.apply(ctx))), end='')
-                continue
-        print(word, end=" ")
+    it = StrIterator(args)
+    while c := it.peek():
+        if c == "@":
+            s = Selector.convert(it)
+            print(f"[{', '.join(map(lambda e: e.name, s.apply(ctx)))}]", end="")
+        else:
+            next(it)
+            print(c, end="")
     print()
 
 

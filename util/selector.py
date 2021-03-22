@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from util.identifier import Identifier
-from args import Converter
-from typing import Optional
+from args import Converter, StrIterator
 
 from context import Context
 from entity import Entity
@@ -12,18 +11,28 @@ class Selector(Converter):
     args: dict[str, str]
     # @implements Converter
     @staticmethod
-    def convert(arg: str) -> Optional[Selector]:
-        if len(arg) < 2 or arg[0] != '@': return None
-        ty = arg[1]
-        if ty not in ('spear'): return None
+    def convert(arg: StrIterator) -> Selector:
+        if next(arg) != '@': arg.invalid("Expected '@'")
+        ty = next(arg)
+        if ty not in ('spear'): arg.invalid(f"Unknown selector type '{ty}'")
         args = {}
-        if len(arg) > 2:
-            if arg[2] != '[' or arg[-1] != ']': return None
-            raw_args = arg[3:-1].replace(' ', '').split(',')
-            for arg in raw_args:
-                parts = arg.split('=')
-                if len(parts) != 2: return None
-                args[parts[0]] = parts[1]
+        match arg.peek():
+            case '[':
+                next(arg)
+                while True:
+                    lhs = ''
+                    current = next(arg)
+                    while current != '=':
+                        lhs += current
+                        current = next(arg)
+                    rhs = ''
+                    current = next(arg)
+                    while current not in (',', ']'):
+                        rhs += current
+                        current = next(arg)
+                    args[lhs] = rhs
+                    if current == ']': break
+
         return Selector(ty, args)
 
     def apply(self, context: Context) -> list[Entity]:

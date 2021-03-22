@@ -3,13 +3,12 @@ from context import *
 from world import *
 
 
-def parse_command(ctx: Context, command: str, *args: str):
-    if handler := {
-        "say": say,
-        "summon": summon,
-        "kill": kill
-    }.get(command):
-        handler(ctx, *args)
+def parse_command(ctx: Context, args: str):
+    command = args.split(" ")
+    if len(command) == 0:
+        return
+    if handler := {"say": say, "summon": summon, "kill": kill}.get(command[0]):
+        handler(ctx, ' '.join(command[1:]))
 
 
 if __name__ == "__main__":  # cli
@@ -17,4 +16,4 @@ if __name__ == "__main__":  # cli
     ctx = Context.server(world)
     while True:
         query = input(">>> ")
-        parse_command(ctx, *query.split(" "))
+        parse_command(ctx, query)

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from args import Converter
-from typing import Optional
+from args import Converter, InvalidChar, StrIterator
 from util.identifier import Identifier
 
 
@@ -12,8 +11,14 @@ class Entity(Converter):
 
     # @implements Converter
     @staticmethod
-    def convert(arg: str) -> Optional[Entity]:
-        id = Identifier.new(arg)
-        if id == None:
-            return None
+    def convert(arg: StrIterator) -> Entity:
+        id_s = ""
+        current = arg.peek()
+        ident_start = arg.index
+        while current not in (None, " "):
+            current = next(arg)
+            id_s += current
+            current = arg.peek()
+        id = Identifier.new(id_s)
+        if id == None: raise InvalidChar(ident_start, "Invalid identifier")
         return Entity(ty=id, name=id.name.capitalize(), uuid=0)
