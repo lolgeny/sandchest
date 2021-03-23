@@ -1,21 +1,25 @@
 from dataclasses import dataclass
 from util.identifier import Identifier
 from args import Converter, StrIterator
+from typing import Set, Tuple, Optional
 
 from context import Context
 from entity import Entity
 
 @dataclass
+class OneEntityException(Exception): pass
+
+@dataclass
 class Selector(Converter):
     ty: str
-    args: dict[str, str]
+    args: Set[Tuple[str, str]]
     # @implements Converter
     @staticmethod
     def convert(arg: StrIterator) -> Selector:
         if next(arg) != '@': arg.invalid("Expected '@'")
         ty = next(arg)
         if ty not in ('spear'): arg.invalid(f"Unknown selector type '{ty}'")
-        args = {}
+        args = set()
         match arg.peek():
             case '[':
                 next(arg)
@@ -30,7 +34,7 @@ class Selector(Converter):
                     while current not in (',', ']'):
                         rhs += current
                         current = next(arg)
-                    args[lhs] = rhs
+                    args.add((lhs, rhs))
                     if current == ']': break
 
         return Selector(ty, args)
@@ -40,7 +44,12 @@ class Selector(Converter):
             case 's': entities = [context.target] if context.target else []
             case 'e': entities = list(context.world.entities.values())
             case _: entities = []
-        if "type" in self.args:
-            if ty := Identifier.new(self.args["type"]):
-                entities = filter(lambda e: e.ty == ty, entities)
-        return list(entities)
+        for ty in filter(lambda a: a[0] == "type", self.args):
+            entities = list(filter(lambda e: e.ty == Identifier.new(ty[1]), entities))
+        return entities
+
+    def apply_one(self, context: Context) -> Optional[Entity]:
+        matching = self.apply(context)
+        if len(matching) > 1:
+            raise OneEntityException()
+        return matching[0] if len(matching) == 1 else None

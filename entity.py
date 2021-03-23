@@ -2,12 +2,22 @@ from dataclasses import dataclass
 from args import Converter, InvalidChar, StrIterator
 from util.identifier import Identifier
 
-
-@dataclass
 class Entity(Converter):
     ty: Identifier
-    name: str
-    uuid: int
+    nbt: dict
+
+    @property
+    def uuid(self) -> int: return int(self.nbt["UUID"])
+
+    @property
+    def name(self) -> str: return str(self.nbt["CustomName"])
+
+    def __init__(self, ty: Identifier):
+        self.ty = ty
+        self.nbt = {
+            "CustomName": ty.name.capitalize(),
+            "UUID": 0
+        }
 
     # @implements Converter
     @staticmethod
@@ -21,4 +31,4 @@ class Entity(Converter):
             current = arg.peek()
         id = Identifier.new(id_s)
         if id == None: raise InvalidChar(ident_start, "Invalid identifier")
-        return Entity(ty=id, name=id.name.capitalize(), uuid=0)
+        return Entity(ty=id)

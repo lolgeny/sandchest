@@ -1,4 +1,4 @@
-from inspect import getfullargspec
+from inspect import signature, Parameter
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
 from dataclasses import dataclass
@@ -31,11 +31,11 @@ class StrIterator:
         return self
 
     def __next__(self) -> str:
-        self.index += 1
-        if self.index > len(self._base):
-            raise ExpectedChar(self.index)
+        if c := self.peek():
+            self.index += 1
+            return c
         else:
-            return self._base[self.index - 1]
+            raise ExpectedChar(self.index)
 
     def peek(self) -> Optional[str]:
         if self.index >= len(self._base):
@@ -60,11 +60,39 @@ class Converter(ABC):
         pass
 
 
+class Word(Converter):
+    # @implements Converter
+    @staticmethod
+    def convert(args: StrIterator) -> str:
+        word = ''
+        if args.empty() or args.peek() == ' ':
+            args.invalid("Expected word")
+        while not args.empty() and not args.peek() == " ":
+            word += next(args)
+        return word
+
+def selection(*valid: str):
+    class Selection(Word):
+        # @implements Converter
+        # @overrides Word
+        @staticmethod
+        def convert(args: StrIterator) -> str:
+            word = Word.convert(args)
+            if word not in valid:
+                args.invalid(f"Expected one of {valid}")
+            return word
+    return Selection
+
 def args(f: Callable) -> Callable:
-    args, _, _, _, kw, _, annotations = getfullargspec(f)
+    sig = signature(f)
+    args = filter(lambda p: p[1].kind == Parameter.POSITIONAL_OR_KEYWORD, sig.parameters.items())
+    next(args)
+    kw = list(filter(lambda p: p[1].kind == Parameter.KEYWORD_ONLY, sig.parameters.items()))
     converters = []
-    for arg in args[1:]:
-        converter = annotations[arg]
+    has_args = False
+    for arg, details in args:
+        has_args = True
+        converter = details.annotation
         # assert isinstance(converter, Converter)
         converters.append(converter.convert)
 
@@ -74,28 +102,26 @@ def args(f: Callable) -> Callable:
         case 1: rest = True
         case _: raise SyntaxError("Can only have one greedy string in command")
 
-    has_args = len(args) > 1
-
-    def arg_function(self, args_s: str):
-        args = StrIterator(args_s)
+    def arg_function(*argsl, empty: bool = True):
+        ctx = argsl[-2]
+        args: StrIterator = argsl[-1]
         parsed_args = []
         for i in range(l):
             parsed = converters[i](args)
-            if parsed == None:
-                assert 3 == 4
             parsed_args.append(parsed)
-            if i != l - 1 and next(args) != " ":
-                assert 4 == 5
-        if rest:
-            if has_args:
-                f(self, *parsed_args, **{kw[0]: args._base[args.index:]})
-            else:
-                f(self, **{kw[0]: args._base[args.index:]})
-        else:
-            if not args.empty(): args.unexpected()
-            if has_args:
-                f(self, *parsed_args)
-            else:
-                f(self)
+            if not args.empty() and next(args) != " ":
+                args.invalid("Expected space")
 
+        ctx._redirect = args
+
+        built_args = list(argsl[:-1])
+        built_args.extend(parsed_args)
+        if rest:
+            i = args.index
+            args.index = len(args._base)
+            f(*built_args, **{kw[0][0]: args._base[i:]})
+        else:
+            f(*built_args)
+            if empty and not args.empty():
+                args.unexpected()
     return arg_function
